@@ -1,0 +1,3 @@
+[submodule "intermediary_service"]
+	path = intermediary_service
+	url = https://github.com/ke1wi/intermediary_service
