@@ -8,7 +8,19 @@ import os
 import datetime
 
 # Імпортуємо конфігураційні змінні
-import config
+from parser_service import config
+
+
+# Kuzyk_V add 31.03
+from requests_html import HTMLSession
+session = HTMLSession()
+# Kuzyk_V fin adding
+
+
+
+
+
+
 
 class ProductListExtractor:
     """
@@ -71,11 +83,16 @@ class ProductListExtractor:
         """
         try:
             print(f"Отримання інформації про товар: {product_url}")
-            response = requests.get(product_url, headers=self.headers, timeout=config.REQUEST_TIMEOUT)
-            response.raise_for_status()
 
+            # Kuzyk V adding 31.03
+            response = session.get(product_url, headers=self.headers, timeout=config.REQUEST_TIMEOUT)
+            response.html.render(wait=1)
+            # response = requests.get(product_url, headers=self.headers, timeout=config.REQUEST_TIMEOUT)
+            # response.raise_for_status()
             # Парсимо HTML сторінки
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.html.html, 'html.parser')
+            # finish adding
 
             # Ініціалізуємо словник для зберігання інформації про товар
             product_info = {}
