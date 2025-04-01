@@ -1,12 +1,11 @@
 import pyautogui
 import time
-import pandas
 
 from selenium.common import NoSuchElementException
 from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 
-from app.utils import get_cookies, remove_html_tags, split_and_clean
+from app.utils import normalize_size, remove_html_tags, split_and_clean
 
 
 def load_photo(driver: webdriver, photos: list) -> None:
@@ -77,33 +76,58 @@ def select_categories(driver: webdriver, item_category: str, item_subcategory: s
                 time.sleep(3)
                 return
 
-
     except Exception as e:
         print(f"Problem with categories: {e}")
 
 
-def select_size_if_needed(driver: webdriver, size: int) -> None:
+def select_sizes_if_needed(driver: webdriver, sizes: list[dict]) -> None:
+    # Convert the sizes from the input list to the required format
+    normalized_sizes = [normalize_size(size) for size in sizes]
+
     """
-    Checks existing of tag 'Select Size' and clicks it if it is.
+    Looks for the 'Select Size' button, clicks it, then selects all the desired sizes.
+    
+    :param driver: WebDriver Selenium
+    :param sizes: List of sizes in the format ["7 D", "7 1/2 D", "8 D"]
     """
     try:
-        size_button = driver.find_element(By.CSS_SELECTOR, 'span.tc--lg')
-        if size_button.text.strip() == "Select Size":
-            size_button.click()
-            time.sleep(2)
-            # print("Нажатие на 'Select Size' выполнено")
+        # Check if there is a "Multi Item" button (if we select several sizes)
+        try:
+            multi_item_button = driver.find_element(By.CSS_SELECTOR, 'button[data-et-name="multiple"]')
+            multi_item_button.click()
+            time.sleep(4)
+        except NoSuchElementException:
+            print("Button 'Multi Item' not found, continue")
 
-        size_buttons = driver.find_elements(By.CSS_SELECTOR, 'li .multi-size-selector__button')
+        try:
+            size_button = driver.find_element(By.CSS_SELECTOR, 'span.tc--lg')
+            if size_button.text.strip() == "Select Size":
+                size_button.click()
+                time.sleep(3)
 
-        for button in size_buttons:
-            if button.text.strip() == size:
-                button.click()
-                # print(f"Размер {size} выбран")
-                return
+                size_buttons = driver.find_elements(By.CSS_SELECTOR,
+                                                    'li div.multi-size-selector__button__container button.multi-size-selector__button')
 
-        print(f"Size {size} was not found")
-    except NoSuchElementException:
-        print("Tag 'Select Size' was not found, skip")
+                # Search and click on the required sizes
+                for button in size_buttons:
+                    button_text = button.text.strip()
+                    if button_text in normalized_sizes:
+                        button.click()
+                        time.sleep(1)
+
+                print(f"Chose sizes: {normalized_sizes}")
+
+                try:
+                    done_button = driver.find_element(By.CSS_SELECTOR, 'button[data-et-name="apply"]')
+                    done_button.click()
+                except NoSuchElementException:
+                    print("❌ Button 'Done' was not found")
+
+        except NoSuchElementException:
+            print("Button 'Select Size' not found, skipping")
+
+    except Exception as e:
+        print(f"Error when choosing size: {e}")
 
 
 def input_price(driver: webdriver, price: float) -> None:
@@ -142,47 +166,47 @@ def save_screenshot(driver: webdriver, link: str) -> None:
         driver.save_screenshot(f"screenshots/{link}.png")
 
     except Exception as e:
-        print(f"Problem with description: {e}")
+        print(f"Problem with screenshot: {e}")
 
 
-def load_items(driver: webdriver, product: dict, full_category: str, product_link: str) -> None:
-    driver.get("https://poshmark.com/create-listing")
-    time.sleep(3)
+def load_item(driver: webdriver, product: dict, full_category: str) -> None:
+    try:
+        driver.get("https://poshmark.com/create-listing")
+        time.sleep(3)
 
-    driver.find_element(By.XPATH, '//button[contains(text(), "OK")]').click()
-    time.sleep(3)
+        driver.find_element(By.XPATH, '//button[contains(text(), "OK")]').click()
+        time.sleep(3)
 
-    load_photo(driver, product["images"])
+        load_photo(driver, product["images"])
 
-    input_title(driver, product["name"])
+        input_title(driver, product["name"])
 
-    description_full_text_html = product["product_details"]["description_full_text_html"]
-    description_text = remove_html_tags(description_full_text_html)
-    input_description(driver, description_text)
+        description_full_text_html = product["product_details"]["description_full_text_html"]
+        description_text = remove_html_tags(description_full_text_html)
+        input_description(driver, description_text)
 
-    subcategory, category, section = split_and_clean(full_category)
-    print(subcategory, category, section)
-    select_categories(driver, category, subcategory)
+        subcategory, category, section = split_and_clean(full_category)
+        select_categories(driver, category, subcategory)
 
-    # # !!! доработать работу со списком размеров
-    # sizes = product["variation"]["sizes"]
-    # select_size_if_needed(driver, sizes)
+        sizes = product["variations"]["sizes"]
+        select_sizes_if_needed(driver, sizes)
 
-    pound_price = product["price"]
-    pound_price = pound_price.replace("£", "")
-    dollar_price = float(pound_price) * 1.26
-    input_price(driver, dollar_price)
+        pound_price = product["price"]
+        pound_price = pound_price.replace("£", "")
+        dollar_price = float(pound_price) * 1.26
+        input_price(driver, dollar_price)
 
-    input_availability(driver)
+        input_availability(driver)
 
-    save_screenshot(driver, product_link)
+        # save_screenshot(driver, product["name"])
 
-    # Click "Next"
-    save_button = driver.find_element(By.XPATH, '//button[contains(text(), "Next")]')
-    save_button.click()
-    time.sleep(3)
+        # Click "Next"
+        save_button = driver.find_element(By.XPATH, '//button[contains(text(), "Next")]')
+        save_button.click()
+        time.sleep(3)
 
-    # driver.quit()
+    except Exception as e:
+        print(f"Problem with load item: {e}")
 
 
 if __name__ == "__main__":

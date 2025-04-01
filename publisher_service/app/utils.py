@@ -1,7 +1,9 @@
 import pickle
+import re
 import time
 import random
 import string
+import json
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -100,6 +102,61 @@ def split_and_clean(text: str) -> tuple[str, str, str]:
         return parts[0], parts[1], parts[2]
     else:
         raise ValueError("String should contain only one symbol '>'")
+
+
+def normalize_size(size_dict: dict) -> str:
+    """
+    Преобразует размер из формата "7 1/2 D" в "7.5" или "8 D" в "8".
+    """
+    size = size_dict["name"]
+    # size = size.split()[0]  # Берём только первое число
+    size = size.replace(" 1/2", ".5")  # Заменяем дробь
+    size = re.sub(r"[^\d.]", "", size)
+    return size
+
+
+def load_json(file_path: str) -> dict:
+    """
+    Загружает JSON-файл и возвращает его содержимое в виде словаря.
+
+    :param file_path: Путь к JSON-файлу.
+    :return: Словарь с данными из JSON.
+    """
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data
+    except FileNotFoundError:
+        print(f"Ошибка: Файл {file_path} не найден.")
+        return {}
+    except json.JSONDecodeError:
+        print(f"Ошибка: Файл {file_path} содержит некорректный JSON.")
+        return {}
+
+
+categories_dict = {
+    "Accessories": ["Accessories"],
+    "Bags": ["Bags"],
+    "Jackets & Coats": ["Jackets & Coats"],
+    "Jeans": ["Jeans"],
+    "Pants": ["Pants"],
+    "Shirts": ["Shirts"],
+    "Shoes": ["Boots", "Shoes"],
+    "Shorts": ["Shorts"],
+    "Suits & Blazers": ["Suits & Blazers"],
+    "Sweaters": ["Sweaters"],
+    "Swim": ["Swim"],
+    "Underwear & Socks": ["Underwear & Socks"],
+    "Grooming": ["Grooming"],
+    "Global & Traditional Wear": ["Global & Traditional Wear"],
+}
+
+
+def define_category(item_category: str) -> str:
+    for category in categories_dict:
+        if item_category in categories_dict[category]:
+            return category
+    return 'Other'
 
 
 if __name__ == "__main__":
