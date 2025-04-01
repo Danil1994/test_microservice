@@ -6,20 +6,21 @@ from selenium.common import NoSuchElementException
 from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 
-from app.utils import get_cookies
+from app.utils import get_cookies, remove_html_tags, split_and_clean
 
 
-def load_photo(driver: webdriver, row: dict) -> None:
-    for _ in range(3):
+def load_photo(driver: webdriver, photos: list) -> None:
+    for photo_link in photos:
         # Find and click on the button "ADD PHOTOS"
         add_photo_btn = driver.find_element(By.XPATH, '//div[contains(text(), "PHOTO")]')
         add_photo_btn.click()
         time.sleep(3)
 
         # Insert the path to the file (must be a full path)
-        pyautogui.write(row['photo'])
+        pyautogui.write(photo_link)
+        time.sleep(2)
         pyautogui.press('enter')
-        time.sleep(3)
+        time.sleep(2)
 
         try:
             apply_button = driver.find_element(By.XPATH, '//button[@data-et-on-name="select_first_photo"]')
@@ -29,25 +30,27 @@ def load_photo(driver: webdriver, row: dict) -> None:
             print("Element 'select_first_photo' was not fount", e)
 
 
-def input_title(driver: webdriver, row: dict) -> None:
+def input_title(driver: webdriver, name: str) -> None:
     try:
         title_input = driver.find_element(By.XPATH, '//input[@placeholder="What are you selling? (required)"]')
-        title_input.send_keys(row['name'])
+        title_input.send_keys(name)
         time.sleep(2)
     except Exception as e:
         print(f"Problem with title: {e}")
 
 
-def input_description(driver: webdriver, row: dict) -> None:
+def input_description(driver: webdriver, desc: str) -> None:
     try:
         desc_input = driver.find_element(By.CSS_SELECTOR, 'textarea[placeholder="Describe it! (required)"]')
-        desc_input.send_keys(row['description'])
+        desc_input.send_keys(desc)
         time.sleep(2)
     except Exception as e:
         print(f"Problem with description: {e}")
 
 
-def select_categories(driver: webdriver, category: str, subcategory: str) -> None:
+def select_categories(driver: webdriver, item_category: str, item_subcategory: str) -> None:
+    item_category = item_category.lower()
+    item_category = item_category.replace("'s", "").replace("’s", "")
     try:
         # select category
         category_dropdown = driver.find_element(By.CSS_SELECTOR,
@@ -55,29 +58,34 @@ def select_categories(driver: webdriver, category: str, subcategory: str) -> Non
         category_dropdown.click()
         time.sleep(2)
 
-        # select subcategory
-        sub_category = driver.find_element(By.CSS_SELECTOR, f'a[data-et-name="{category}"]')
+        sub_category = driver.find_element(By.CSS_SELECTOR, f'a[data-et-name="{item_category}"]')
         sub_category.click()
         time.sleep(3)
 
+        # select subcategory
         menu_items = driver.find_elements(By.CSS_SELECTOR, 'li.dropdown__menu__item div.p--l--7')
 
         for item in menu_items:
-            if item.text.strip() == subcategory:
+            if item.text.strip() == item_subcategory:
                 item.click()
-                break
-        time.sleep(3)
+                time.sleep(3)
+                return
+
+        for item in menu_items:
+            if item.text.strip() == "Other":
+                item.click()
+                time.sleep(3)
+                return
+
 
     except Exception as e:
         print(f"Problem with categories: {e}")
 
 
-def select_size_if_needed(driver: webdriver, row) -> None:
+def select_size_if_needed(driver: webdriver, size: int) -> None:
     """
-    Проверяет наличие тега 'Select Size' и, если он есть, нажимает на него.
+    Checks existing of tag 'Select Size' and clicks it if it is.
     """
-    characteristics = row['characteristics']
-    size = characteristics['Size']
     try:
         size_button = driver.find_element(By.CSS_SELECTOR, 'span.tc--lg')
         if size_button.text.strip() == "Select Size":
@@ -98,10 +106,10 @@ def select_size_if_needed(driver: webdriver, row) -> None:
         print("Tag 'Select Size' was not found, skip")
 
 
-def input_price(driver: webdriver, row: dict) -> None:
+def input_price(driver: webdriver, price: float) -> None:
     try:
-        price = (str(row['price']))
-        price = price.replace("$", "")
+        # price = (str(row['price']))
+        # price = price.replace("$", "")
         price = int(float(price))
 
         original_price_input = driver.find_element(By.XPATH, '//input[@data-vv-name="originalPrice"]')
@@ -129,46 +137,52 @@ def input_availability(driver: webdriver) -> None:
         print(f"Problem with description: {e}")
 
 
-def save_screenshot(driver: webdriver, row: dict, category: str) -> None:
+def save_screenshot(driver: webdriver, link: str) -> None:
     try:
-        product_id = (row['unicum_id'])
-        driver.save_screenshot(f"screenshots/{category}_{product_id}.png")
+        driver.save_screenshot(f"screenshots/{link}.png")
 
     except Exception as e:
         print(f"Problem with description: {e}")
 
 
-def load_items(driver: webdriver, df: pandas, category: str, subcategory: str) -> None:
-    get_cookies(driver)
-    for index, row in df.iterrows():
-        driver.get("https://poshmark.com/create-listing")
-        time.sleep(3)
+def load_items(driver: webdriver, product: dict, full_category: str, product_link: str) -> None:
+    driver.get("https://poshmark.com/create-listing")
+    time.sleep(3)
 
-        driver.find_element(By.XPATH, '//button[contains(text(), "OK")]').click()
-        time.sleep(3)
+    driver.find_element(By.XPATH, '//button[contains(text(), "OK")]').click()
+    time.sleep(3)
 
-        load_photo(driver, row)
+    load_photo(driver, product["images"])
 
-        input_title(driver, row)
+    input_title(driver, product["name"])
 
-        input_description(driver, row)
+    description_full_text_html = product["product_details"]["description_full_text_html"]
+    description_text = remove_html_tags(description_full_text_html)
+    input_description(driver, description_text)
 
-        select_categories(driver, category, subcategory)
+    subcategory, category, section = split_and_clean(full_category)
+    print(subcategory, category, section)
+    select_categories(driver, category, subcategory)
 
-        # select_size_if_needed(driver, row)
+    # # !!! доработать работу со списком размеров
+    # sizes = product["variation"]["sizes"]
+    # select_size_if_needed(driver, sizes)
 
-        input_price(driver, row)
+    pound_price = product["price"]
+    pound_price = pound_price.replace("£", "")
+    dollar_price = float(pound_price) * 1.26
+    input_price(driver, dollar_price)
 
-        input_availability(driver)
+    input_availability(driver)
 
-        save_screenshot(driver, row, category)
+    save_screenshot(driver, product_link)
 
-        # Click "Next"
-        save_button = driver.find_element(By.XPATH, '//button[contains(text(), "Next")]')
-        save_button.click()
-        time.sleep(3)
+    # Click "Next"
+    save_button = driver.find_element(By.XPATH, '//button[contains(text(), "Next")]')
+    save_button.click()
+    time.sleep(3)
 
-    driver.quit()
+    # driver.quit()
 
 
 if __name__ == "__main__":

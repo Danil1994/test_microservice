@@ -3,6 +3,7 @@ import time
 import random
 import string
 
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -76,11 +77,29 @@ def sign_up(driver: webdriver) -> dict[str, str]:
 
         time.sleep(300)
 
-        print(f"✅ Успешная регистрация: {username} ({email})")
+        print(f"✅ Successful registration: {username} ({email})")
         return {"username": username, "email": email, "password": password}
 
     except Exception as e:
-        print(f"❌ Ошибка регистрации: {e}")
+        print(f"❌ Registration error: {e}")
+
+
+def remove_html_tags(text):
+    return BeautifulSoup(text, "html.parser").get_text().strip()
+
+
+def split_and_clean(text: str) -> tuple[str, str, str]:
+    """
+    Separate string by '>' and del extra space
+
+    :param text: Строка в формате "Men > Shoes"
+    :return: Кортеж (первое слово, второе слово)
+    """
+    parts = [part.strip() for part in text.split(">")]
+    if len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    else:
+        raise ValueError("String should contain only one symbol '>'")
 
 
 if __name__ == "__main__":
